@@ -8,7 +8,7 @@ const REFS = {
   view2: 'View 2 render',
 }
 
-export function Toolbar({ onExport, onImport, onReset }) {
+export function Toolbar({ onExport, onImport, onReset, children }) {
   const mode = useApp((s) => s.mode)
   const setMode = useApp((s) => s.setMode)
   const goView = useApp((s) => s.goView)
@@ -80,7 +80,7 @@ export function Toolbar({ onExport, onImport, onReset }) {
         <button onClick={screenshot}>Screenshot</button>
         <button onClick={onExport}>Export JSON</button>
         <button onClick={() => fileRef.current.click()}>Import JSON</button>
-        <button onClick={onReset}>Reset</button>
+        <button onClick={onReset} title="Undo panel changes to the current design">Reset</button>
         <input
           ref={fileRef}
           type="file"
@@ -88,11 +88,13 @@ export function Toolbar({ onExport, onImport, onReset }) {
           style={{ display: 'none' }}
           onChange={async (e) => {
             const f = e.target.files?.[0]
-            if (f) onImport(JSON.parse(await f.text()))
+            if (f) onImport(JSON.parse(await f.text()), f.name)
             e.target.value = ''
           }}
         />
       </div>
+      {children && <div className="break" />}
+      {children}
     </div>
   )
 }

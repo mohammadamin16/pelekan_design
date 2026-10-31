@@ -13,8 +13,8 @@ export const SIGN_MATERIALS = {
 }
 
 const TEXT = {
-  fa: { floor: 'طبقه', unit: 'واحد', name: 'نام واحد', branch: 'شعبه' },
-  en: { floor: 'FLOOR', unit: 'UNIT', name: 'Unit name', branch: 'Branch' },
+  fa: { floor: 'طبقه', unit: 'واحد', name: 'نام واحد' },
+  en: { floor: 'FLOOR', unit: 'UNIT', name: 'Unit name' },
 }
 
 const PPM = 1000 // canvas pixels per metre
@@ -81,8 +81,8 @@ export function floorCarrierTexture({ w, h, zoneW, floor, lang, material, accent
   return toTexture(c)
 }
 
-// Replaceable unit plate: floor + unit number, unit name, branch.
-export function unitTexture({ w, h, floor, unitNo, name, branch, lang, material, accent }) {
+// Replaceable unit plate: floor + unit number, unit name.
+export function unitTexture({ w, h, floor, unitNo, name, lang, material, accent }) {
   const m = SIGN_MATERIALS[material]
   const T = TEXT[lang]
   const rtl = lang === 'fa'
@@ -105,16 +105,106 @@ export function unitTexture({ w, h, floor, unitNo, name, branch, lang, material,
   const tag = `${T.unit} ${n(unitNo)}   ·   ${T.floor} ${n(floor)}`
   ctx.fillStyle = accent
   fit(ctx, tag, maxW, H * 0.13, 600)
-  ctx.fillText(tag, x, H * 0.2)
+  ctx.fillText(tag, x, H * 0.24)
 
   const nm = name?.trim() || T.name
   ctx.fillStyle = name?.trim() ? m.text : m.sub
-  fit(ctx, nm, maxW, H * 0.27, 800)
-  ctx.fillText(nm, x, H * 0.52)
+  fit(ctx, nm, maxW, H * 0.32, 800)
+  ctx.fillText(nm, x, H * 0.62)
+  return toTexture(c)
+}
 
-  const br = branch?.trim() || T.branch
+// ---- Guide board 2 · Rail & cassettes ------------------------------------
+
+// Centre floor tile: just the small "floor" label; the numeral is a separate raised piece.
+export function railTileTexture({ w, h, lang, material }) {
+  const m = SIGN_MATERIALS[material]
+  const T = TEXT[lang]
+  const [c, ctx] = makeCanvas(w, h)
+  fillBase(ctx, c.width, c.height, m)
   ctx.fillStyle = m.sub
-  fit(ctx, br, maxW, H * 0.15, 400)
-  ctx.fillText(br, x, H * 0.81)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.direction = lang === 'fa' ? 'rtl' : 'ltr'
+  fit(ctx, T.floor, c.width * 0.8, c.height * 0.12, 600)
+  ctx.fillText(T.floor, c.width / 2, c.height * 0.15)
+  return toTexture(c)
+}
+
+// Raised laser-cut floor numeral (white mask; the material gives it its colour).
+export function railNumeralTexture({ w, h, floor, lang }) {
+  const [c, ctx] = makeCanvas(w, h)
+  const num = lang === 'fa' ? toFa(floor) : String(floor)
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  fit(ctx, num, c.width * 0.8, c.height * 0.7, 800)
+  ctx.fillText(num, c.width / 2, c.height * 0.6)
+  return toTexture(c)
+}
+
+// Slide-in unit insert: number block on the reading-start side, then the unit name.
+// `inset` (m) keeps the text clear of shaped plate ends (used by the chevron tags).
+export function railInsertTexture({ w, h, floor, unitNo, name, lang, material, accent, inset = 0 }) {
+  const m = SIGN_MATERIALS[material]
+  const T = TEXT[lang]
+  const rtl = lang === 'fa'
+  const [c, ctx] = makeCanvas(w, h)
+  fillBase(ctx, c.width, c.height, m)
+  const ip = inset * PPM
+  ctx.translate(ip, 0)
+  const W = c.width - 2 * ip
+  const H = c.height
+  const n = (v) => (rtl ? toFa(v) : v)
+  ctx.textBaseline = 'middle'
+  ctx.direction = rtl ? 'rtl' : 'ltr'
+
+  // number block
+  const nb = Math.min(W * 0.3, H * 1.2)
+  const bx = rtl ? W - nb / 2 : nb / 2
+  ctx.textAlign = 'center'
+  ctx.fillStyle = m.sub
+  fit(ctx, T.unit, nb * 0.8, H * 0.11, 600)
+  ctx.fillText(T.unit, bx, H * 0.2)
+  ctx.fillStyle = accent
+  fit(ctx, n(unitNo), nb * 0.82, H * 0.36, 800)
+  ctx.fillText(n(unitNo), bx, H * 0.48)
+  ctx.fillStyle = m.sub
+  const fl = `${T.floor} ${n(floor)}`
+  fit(ctx, fl, nb * 0.8, H * 0.12, 400)
+  ctx.fillText(fl, bx, H * 0.78)
+
+  // divider
+  const dx = rtl ? W - nb : nb
+  ctx.fillStyle = accent
+  ctx.fillRect(dx - 1.5, H * 0.16, 3, H * 0.68)
+
+  // unit name
+  const pad = H * 0.1
+  const x = rtl ? W - nb - pad : nb + pad
+  const maxW = W - nb - 2 * pad
+  ctx.textAlign = rtl ? 'right' : 'left'
+  const nm = name?.trim() || T.name
+  ctx.fillStyle = name?.trim() ? m.text : m.sub
+  fit(ctx, nm, maxW, H * 0.28, 800)
+  ctx.fillText(nm, x, H * 0.52)
+  return toTexture(c)
+}
+
+// ---- Guide board 3 · Spine & chevrons ------------------------------------
+
+// Hexagonal floor plate face: accent metal with a small "floor" label (numeral is raised).
+export function hexFloorTexture({ w, h, lang, accent, ink }) {
+  const T = TEXT[lang]
+  const [c, ctx] = makeCanvas(w, h)
+  ctx.fillStyle = accent
+  ctx.fillRect(0, 0, c.width, c.height)
+  ctx.fillStyle = ink
+  ctx.globalAlpha = 0.75
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.direction = lang === 'fa' ? 'rtl' : 'ltr'
+  fit(ctx, T.floor, c.width * 0.4, c.height * 0.12, 600)
+  ctx.fillText(T.floor, c.width / 2, c.height * 0.17)
   return toTexture(c)
 }

@@ -40,13 +40,12 @@ export const SCHEMA = {
     ribsBehind: { value: true, label: 'hidden behind mesh' },
     separateFrames: { value: true, label: 'frame per section' },
     edgeRibs: { value: false, label: 'ribs at outer edges' },
-    ribColor: { value: '#0e0e0e', label: 'colour' },
   },
   Mesh: {
     meshCellW: { value: 0.08, min: 0.01, max: 0.3, step: 0.005, label: 'cell width' },
     meshCellH: { value: 0.04, min: 0.005, max: 0.3, step: 0.005, label: 'cell height' },
     meshStrand: { value: 0.3, min: 0.04, max: 0.45, step: 0.01, label: 'strand thickness' },
-    meshColor: { value: '#f2f2f2', label: 'colour' },
+    meshColor: { value: '#759465', label: 'colour (mesh + profiles)' }, // jade green, Pantone 16-0228 TCX
     meshMetalness: { value: 0.25, min: 0, max: 1, step: 0.01, label: 'metalness' },
     meshRoughness: { value: 0.4, min: 0, max: 1, step: 0.01, label: 'roughness' },
     meshShadows: { value: false, label: 'cast shadows (slow)' },
@@ -61,6 +60,7 @@ export const SCHEMA = {
   },
   Signage: {
     showSigns: { value: true, label: 'floor directory' },
+    signStyle: { value: 'plates', options: { '1 · Plates': 'plates', '2 · Rail & cassettes': 'rail', '3 · Spine & chevrons': 'spine' }, label: 'guide board' },
     signBay: { value: 2, options: { 'section 2': 1, 'section 3': 2, 'section 4': 3 }, label: 'on section' },
     signLang: { value: 'fa', options: { 'فارسی': 'fa', English: 'en' }, label: 'language' },
     signMaterial: {
@@ -73,7 +73,7 @@ export const SCHEMA = {
       },
       label: 'material',
     },
-    signAccent: { value: '#c8a14a', label: 'accent' },
+    signAccent: { value: '#97564a', label: 'accent (copper)' },
     signTop: { value: 1.95, min: 1, max: 2.3, step: 0.01, label: 'top height' },
     signRowH: { value: 0.26, min: 0.12, max: 0.4, step: 0.005, label: 'plate height' },
     signGap: { value: 0.05, min: 0, max: 0.2, step: 0.005, label: 'gap between floors' },
@@ -104,7 +104,6 @@ function buildDirectory() {
       const group = `Floor ${f}`
       d[`f${f}${k}No`] = { value: `${f}0${n}`, label: `unit ${n} no.`, group }
       d[`f${f}${k}Name`] = { value: '', label: `unit ${n} name`, group }
-      d[`f${f}${k}Branch`] = { value: '', label: `unit ${n} branch`, group }
     }
   }
   return d

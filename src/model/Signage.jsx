@@ -1,15 +1,18 @@
-// Floor directory on one of the middle mesh sections (2-4, never 1 or 5).
+// Floor directory (guide board) on one of the middle mesh sections, never the first or last.
+// Variants: 1 · Plates (below), 2 · Rail & cassettes (SignRail.jsx), 3 · Spine & chevrons (SignSpine.jsx).
 //
-// Assembly, per floor (all separately removable by hand):
+// 1 · Plates assembly, per floor (all separately removable by hand):
 //   hidden 20x40 support bar behind the mesh (part of the section frame)
 //   └ 4 standoffs through the mesh
 //     └ floor carrier plate (floor number) — held by 4 thumb nuts
-//       └ 2 unit plates (unit no., floor no., name, branch) — 4 screws each
-import { useEffect, useMemo, useState } from 'react'
+//       └ 2 unit plates (unit no., floor no., name) — 4 screws each
+import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import { featureLayout } from '../params'
 import { boxGeometry, ribSpan } from '../geometry/ribPath'
 import { SIGN_MATERIALS, floorCarrierTexture, unitTexture } from '../textures/signs'
+import { BASIS, Cyl, signBay, useFontsReady } from './signParts'
+import { RailSign } from './SignRail'
+import { SpineSign } from './SignSpine'
 
 const T_CARRIER = 0.004 // 4 mm plate
 const T_UNIT = 0.003 // 3 mm plate
@@ -17,46 +20,8 @@ const UNIT_SPACER = 0.012 // unit plates stand proud of the carrier and hide its
 const ZONE_W = 0.2 // floor-number panel width
 const PAD = 0.022
 
-// local plate space: +x = viewer's right (world -Y), +y = up (world +Z), +z = toward viewer (world -X)
-const BASIS = new THREE.Quaternion().setFromRotationMatrix(
-  new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0))
-)
-
-function useFontsReady() {
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    let alive = true
-    Promise.all([
-      document.fonts.load(`800 40px Vazirmatn`, 'طبقه 5'),
-      document.fonts.load(`600 40px Vazirmatn`, 'واحد'),
-      document.fonts.load(`400 40px Vazirmatn`, 'شعبه'),
-    ])
-      .catch(() => {})
-      .finally(() => alive && setReady(true))
-    return () => (alive = false)
-  }, [])
-  return ready
-}
-
-const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 20).rotateX(Math.PI / 2) // axis along local z
-
-function Cyl({ x, y, z0, z1, r, material }) {
-  return (
-    <mesh
-      geometry={cylGeo}
-      material={material}
-      position={[x, y, (z0 + z1) / 2]}
-      scale={[r, r, Math.max(1e-4, z1 - z0)]}
-      castShadow
-    />
-  )
-}
-
-export function Signage({ P, M }) {
-  const fontsReady = useFontsReady()
-  const L = featureLayout(P)
-  const bay = L.bayRanges[Math.min(Math.max(1, P.signBay), Math.max(1, L.bayRanges.length - 2))]
-
+// Guide board 1 · Plates
+function PlateSign({ P, M, bay, fontsReady }) {
   const mat = SIGN_MATERIALS[P.signMaterial] || SIGN_MATERIALS.blackSteel
   const rtl = P.signLang === 'fa'
 
@@ -96,7 +61,6 @@ export function Signage({ P, M }) {
           floor,
           unitNo: P[`f${floor}${k}No`],
           name: P[`f${floor}${k}Name`],
-          branch: P[`f${floor}${k}Branch`],
         })
       ),
     }))
@@ -224,4 +188,12 @@ export function Signage({ P, M }) {
       </group>
     </>
   )
+}
+
+export function Signage({ P, M }) {
+  const fontsReady = useFontsReady()
+  const bay = signBay(P)
+  if (!P.showSigns || !bay) return null
+  const Board = { rail: RailSign, spine: SpineSign }[P.signStyle] || PlateSign
+  return <Board P={P} M={M} bay={bay} fontsReady={fontsReady} />
 }

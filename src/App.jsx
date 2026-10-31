@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer } from '@react-three/drei'
-import { Leva, folder, useControls } from 'leva'
+import { Leva, LevaInputs, folder, useControls } from 'leva'
 import * as THREE from 'three'
 import { DEFAULTS, PRESETS, SCHEMA, r2t, t2r } from './params'
+import { allDesigns, createFrom, paramsOf, record, resetActive, useDesigns } from './designs'
 import { useApp } from './store'
 import { useMaterials } from './model/materials'
 import { Room } from './model/Room'
@@ -11,20 +12,10 @@ import { Feature } from './model/Feature'
 import { Signage } from './model/Signage'
 import { LensSync, Navigation } from './controls/Navigation'
 import { Toolbar } from './ui/Toolbar'
-
-const STORAGE_KEY = 'pelekan-design-params-v2'
-
-function loadSaved() {
-  try {
-    const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
-    return Object.fromEntries(Object.entries(s).filter(([k]) => k in DEFAULTS))
-  } catch {
-    return {}
-  }
-}
+import { DesignBar } from './ui/DesignBar'
 
 function buildSchema() {
-  const saved = loadSaved()
+  const saved = paramsOf(useDesigns.getState().active)
   return Object.fromEntries(
     Object.entries(SCHEMA).map(([name, fields]) => {
       // fields with a `group` go into a nested (collapsed) sub-folder
@@ -32,6 +23,11 @@ function buildSchema() {
       const groups = {}
       Object.entries(fields).forEach(([k, { group, ...def }]) => {
         const entry = { ...def, value: saved[k] ?? def.value }
+        // plain text fields: otherwise leva reads "0, 4" as the number 0 with a ", 4" suffix
+        if (typeof def.value === 'string' && !def.options && !def.value.startsWith('#')) {
+          entry.type = LevaInputs.STRING
+          entry.value = String(entry.value)
+        }
         if (group) (groups[group] ||= {})[k] = entry
         else top[k] = entry
       })
@@ -126,27 +122,29 @@ export default function App() {
   const refImage = useApp((s) => s.refImage)
   const refOpacity = useApp((s) => s.refOpacity)
 
-  useEffect(() => {
-    try {
-      // only store what differs from the defaults, so improved defaults still apply
-      const diff = Object.fromEntries(Object.entries(P).filter(([k, v]) => String(DEFAULTS[k]) !== String(v))) // leva turns "501" into 501
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(diff))
-    } catch {}
-  }, [P])
+  // file every panel change under the active design (only differences are stored)
+  useEffect(() => record(P), [P])
+  const apply = useCallback((vals) => vals && set(vals), [set])
 
   const onLens = useCallback((lens) => set({ lens }), [set])
   if (import.meta.env.DEV) window.__set = set
   const onExport = () => {
-    const blob = new Blob([JSON.stringify(P, null, 2)], { type: 'application/json' })
+    const d = allDesigns().find((x) => x.id === useDesigns.getState().active)
+    const blob = new Blob([JSON.stringify({ design: d?.name, ...P }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = 'pelekan-design.json'
+    a.download = `pelekan-${(d?.name || 'design').replace(/[^\w\u0600-\u06ff-]+/g, '-').toLowerCase()}.json`
     a.click()
     URL.revokeObjectURL(a.href)
   }
-  const onImport = (obj) => set(Object.fromEntries(Object.entries(obj).filter(([k]) => k in DEFAULTS)))
+  // an imported file becomes a new design, so nothing gets overwritten
+  const onImport = (obj, fileName) => {
+    const vals = Object.fromEntries(Object.entries(obj).filter(([k]) => k in DEFAULTS))
+    const name = obj.design || fileName.replace(/\.json$/i, '')
+    apply(createFrom({ ...DEFAULTS, ...vals }, name))
+  }
   const onReset = () => {
-    if (confirm('Reset all parameters to the defaults?')) set(DEFAULTS)
+    if (confirm('Undo all panel changes to this design?')) apply(resetActive())
   }
 
   const ref = REF_SIZE[refImage]
@@ -185,12 +183,14 @@ export default function App() {
           </div>
         )}
       </div>
-      <Toolbar onExport={onExport} onImport={onImport} onReset={onReset} />
+      <Toolbar onExport={onExport} onImport={onImport} onReset={onReset}>
+        <DesignBar P={P} apply={apply} />
+      </Toolbar>
       <div className="hud">
         <div id="hud-cam" />
         <div className="keys">
           {mode === 'orbit'
-            ? 'Orbit: left-drag rotate · right-drag pan · wheel zoom · 1-6 views · Tab walk'
+            ? 'Orbit: left-drag rotate · right-drag pan · wheel zoom · 1-6 views · [ ] design · G guide board · Tab walk'
             : 'Walk: WASD move · Shift run · Q/E height · Tab orbit'}
         </div>
       </div>

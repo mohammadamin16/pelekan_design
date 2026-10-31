@@ -38,7 +38,6 @@ export function useMaterials(P) {
 
   M.plaster.color.set(P.plasterColor)
   M.ceiling.color.set(P.plasterColor)
-  M.steel.color.set(P.ribColor)
 
   if (M.mesh.map !== meshTex.map) {
     M.mesh.map = meshTex.map
@@ -50,6 +49,10 @@ export function useMaterials(P) {
   M.mesh.color.set(P.meshColor)
   M.mesh.metalness = P.meshMetalness
   M.mesh.roughness = P.meshRoughness
+  // profiles are always the mesh colour
+  M.steel.color.set(P.meshColor)
+  M.steel.metalness = P.meshMetalness
+  M.steel.roughness = P.meshRoughness
 
   return M
 }
