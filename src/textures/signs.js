@@ -1,5 +1,7 @@
 // Canvas textures for the floor directory plates (Persian RTL or English).
 import * as THREE from 'three'
+import { drawFloorGlyph } from './floorGlyphs'
+import { bridgeIslands } from './laserCut'
 
 // Sign typefaces. Vazirmatn comes from Google Fonts (index.html); Shabnam is
 // self-hosted in public/fonts/shabnam (@font-face in styles.css).
@@ -32,6 +34,7 @@ const TEXT = {
 
 const PPM = 2000 // canvas pixels per metre (high enough for clean laser-cut edges)
 const CLEAR = 'rgba(0,0,0,0)'
+const BRIDGE = 0.0025 // laser bridge width (m) holding counters such as م و ه in place
 
 function makeCanvas(wm, hm) {
   const c = document.createElement('canvas')
@@ -72,7 +75,8 @@ function toTexture(c, color = true) {
 // Draw a plate face. `draw(ctx, ink)` paints everything with `ctx.fillStyle = ink(colour)`,
 // and light text with `ink(colour, true)`. On a `cut` material that text is left off the
 // face and drawn into a second canvas instead, as a hole in an alpha mask (white = plate,
-// black = cut out), so the white board behind shows through.
+// black = cut out), so the white board behind shows through. Any plate left loose inside
+// a cut (an island) gets a thin straight bridge, so the plate stays in one piece.
 // Returns { map, alpha } (alpha is null for plates that are not cut).
 function plateFace(wm, hm, m, draw) {
   const [c, ctx] = makeCanvas(wm, hm)
@@ -82,12 +86,24 @@ function plateFace(wm, hm, m, draw) {
   mctx.fillStyle = '#ffffff'
   mctx.fillRect(0, 0, mc.width, mc.height)
   draw(mctx, (colour, cut) => (cut ? '#000000' : CLEAR))
+  bridgeIslands(mctx, BRIDGE * PPM)
   return { map: toTexture(c), alpha: toTexture(mc, false) }
 }
 
 export const disposeFace = (f) => {
   f?.map?.dispose()
   f?.alpha?.dispose()
+}
+
+// Floor number: the custom laser-cut numerals for Persian, the sign font for English.
+// `h` is the numeral height in px; `breakout` lets a numeral run off the plate edge.
+function floorNumber(ctx, font, floor, lang, cx, cy, h, breakout = false) {
+  if (lang === 'fa' && drawFloorGlyph(ctx, floor, cx, cy, h, { breakout })) return
+  const num = lang === 'fa' ? toFa(floor) : String(floor)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  fit(ctx, font, num, h * 1.2, h * 1.25, 800)
+  ctx.fillText(num, cx, cy + h * 0.06)
 }
 
 // Floor carrier plate: floor-number panel on the reading-start side; the rest is
@@ -110,9 +126,7 @@ export function floorCarrierTexture({ font, w, h, zoneW, floor, lang, material, 
     ctx.direction = rtl ? 'rtl' : 'ltr'
     fit(ctx, font, T.floor, zw * 0.8, H * 0.16, 600)
     ctx.fillText(T.floor, zx + zw / 2, H * 0.22)
-    const num = rtl ? toFa(floor) : String(floor)
-    fit(ctx, font, num, zw * 0.8, H * 0.58, 800)
-    ctx.fillText(num, zx + zw / 2, H * 0.62)
+    floorNumber(ctx, font, floor, lang, zx + zw / 2, H * 0.62, H * 0.5)
   })
 }
 
@@ -169,14 +183,11 @@ export function railTileTexture({ font, w, h, lang, material }) {
 }
 
 // Raised laser-cut floor numeral (white mask; the material gives it its colour).
+// One piece with no loose bits (see floorGlyphs.js).
 export function railNumeralTexture({ font, w, h, floor, lang }) {
   const [c, ctx] = makeCanvas(w, h)
-  const num = lang === 'fa' ? toFa(floor) : String(floor)
   ctx.fillStyle = '#ffffff'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  fit(ctx, font, num, c.width * 0.8, c.height * 0.7, 800)
-  ctx.fillText(num, c.width / 2, c.height * 0.6)
+  floorNumber(ctx, font, floor, lang, c.width / 2, c.height * 0.58, c.height * 0.6)
   return toTexture(c)
 }
 
@@ -231,18 +242,16 @@ export function railInsertTexture({ font, w, h, floor, unitNo, name, lang, mater
 
 // ---- Guide board 3 · Hexagons & chevrons ------------------------------------
 
-// Hexagonal floor plate face: accent metal with a small "floor" label (numeral is raised).
-export function hexFloorTexture({ font, w, h, lang, accent, ink }) {
-  const T = TEXT[lang]
-  const [c, ctx] = makeCanvas(w, h)
-  ctx.fillStyle = accent
-  ctx.fillRect(0, 0, c.width, c.height)
-  ctx.fillStyle = ink
-  ctx.globalAlpha = 0.75
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.direction = lang === 'fa' ? 'rtl' : 'ltr'
-  fit(ctx, font, T.floor, c.width * 0.4, c.height * 0.12, 600)
-  ctx.fillText(T.floor, c.width / 2, c.height * 0.17)
-  return toTexture(c)
+// Hexagonal floor plate: accent metal with the floor numeral laser-cut through it, so the
+// white board behind shows the number. Some numerals run out through the plate edge
+// ("break the frame"); the plate geometry is cut there too (see plateGeometry).
+export function hexFloorTexture({ font, w, h, floor, lang, accent }) {
+  return plateFace(w, h, { base: accent, cut: true }, (ctx, ink) => {
+    const W = ctx.canvas.width
+    const H = ctx.canvas.height
+    ctx.fillStyle = ink(accent)
+    ctx.fillRect(0, 0, W, H)
+    ctx.fillStyle = ink('#ffffff', true)
+    floorNumber(ctx, font, floor, lang, W / 2, H * 0.52, H * 0.72, true)
+  })
 }

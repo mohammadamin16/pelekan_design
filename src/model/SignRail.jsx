@@ -7,12 +7,14 @@
 //     └ 2 unit inserts per floor (unit no., floor no., name) slide into the channel
 //       from its two open ends, one each side of the floor tile. Each end is closed by its
 //       own end cap with a thumb screw, so one unit comes out without touching the other.
+// With laser-cut faces, tile and inserts are each a white board with flush pot magnets and a
+// face plate held on them (2 locating studs), so a face can be swapped without the board.
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { strandDepth } from '../geometry/expandedMetal'
 import { boxGeometry, ribSpan } from '../geometry/ribPath'
 import { SIGN_MATERIALS, disposeFace, railInsertTexture, railNumeralTexture, railTileTexture, fontStack } from '../textures/signs'
-import { BASIS, Cyl, WHITE_INSET, WHITE_T, faceMaterial, signRows, whiteBoardMaterial } from './signParts'
+import { BASIS, Cyl, LocatingStud, PotMagnet, WHITE_INSET, WHITE_T, faceMaterial, signRows, whiteBoardMaterial } from './signParts'
 
 const POST_W = 0.02 // 20 to the viewer
 const POST_D = 0.04 // 40 deep
@@ -150,6 +152,12 @@ export function RailSign({ P, M, bay, fontsReady }) {
   const zIn = POST_Z0 + POST_D + TRAY_T // front of the tray, inside the channel
   const zLip = zIn + LIP_D / 2
   const wz = mats.white ? WHITE_T : 0 // tile + inserts sit in front of their white boards
+  const faceOut = mats.white ? ex * 0.05 : 0 // face plates pull off their magnets
+  // magnets and studs kept clear of every cut letter, so they never show through
+  const tileMags = [-1, 1].map((s) => [s * (L.tileW / 2 - 0.018), -(L.inner / 2 - 0.018)])
+  const tileStuds = [-1, 1].map((s) => [s * (L.tileW / 2 - 0.018), L.inner / 2 - 0.018])
+  const insMags = [-1, 1].map((s) => [s * (L.insW / 2 - 0.02), L.insH / 2 - 0.022])
+  const insStuds = [-1, 1].map((s) => [s * (L.insW / 2 - 0.02), -(L.insH / 2 - 0.015)])
 
   return (
     <>
@@ -195,22 +203,44 @@ export function RailSign({ P, M, bay, fontsReady }) {
               />
             ))}
             {/* floor tile + raised numeral */}
-            <mesh geometry={geos.tile} material={mats.tile} position={[0, 0, zIn + wz + TILE_T / 2]} castShadow />
-            {mats.white && <mesh geometry={geos.tileWhite} material={mats.white} position={[0, 0, zIn + WHITE_T / 2]} />}
-            {Array.from({ length: NUM_LAYERS }, (_, k) => (
-              <mesh
-                key={`num${k}`}
-                geometry={geos.numeral}
-                material={mats.rows[i].numeral}
-                position={[0, 0, zIn + wz + TILE_T + 0.0005 + (k * NUM_T) / (NUM_LAYERS - 1)]}
-                castShadow={k === NUM_LAYERS - 1}
-              />
-            ))}
+            {mats.white && (
+              <>
+                <mesh geometry={geos.tileWhite} material={mats.white} position={[0, 0, zIn + WHITE_T / 2]} />
+                {tileMags.map(([x, y], j) => (
+                  <PotMagnet key={`tm${j}`} x={x} y={y} front={zIn + WHITE_T} />
+                ))}
+              </>
+            )}
+            <group position={[0, 0, faceOut]}>
+              <mesh geometry={geos.tile} material={mats.tile} position={[0, 0, zIn + wz + TILE_T / 2]} castShadow />
+              {mats.white &&
+                tileStuds.map(([x, y], j) => <LocatingStud key={`ts${j}`} x={x} y={y} back={zIn + WHITE_T} />)}
+              {Array.from({ length: NUM_LAYERS }, (_, k) => (
+                <mesh
+                  key={`num${k}`}
+                  geometry={geos.numeral}
+                  material={mats.rows[i].numeral}
+                  position={[0, 0, zIn + wz + TILE_T + 0.0005 + (k * NUM_T) / (NUM_LAYERS - 1)]}
+                  castShadow={k === NUM_LAYERS - 1}
+                />
+              ))}
+            </group>
             {/* unit inserts slide out sideways through their own open end */}
             {L.unitX.map((x, k) => (
               <group key={`ins${k}`} position={[x + Math.sign(x) * ex * (L.insW + 0.08), 0, zIn + 0.0005]}>
-                <mesh geometry={geos.insert} material={mats.rows[i].units[k]} position={[0, 0, wz + INSERT_T / 2]} castShadow />
-                {mats.white && <mesh geometry={geos.insertWhite} material={mats.white} position={[0, 0, WHITE_T / 2]} />}
+                {mats.white && (
+                  <>
+                    <mesh geometry={geos.insertWhite} material={mats.white} position={[0, 0, WHITE_T / 2]} />
+                    {insMags.map(([mx, my], j) => (
+                      <PotMagnet key={`im${j}`} x={mx} y={my} front={WHITE_T} />
+                    ))}
+                  </>
+                )}
+                <group position={[0, 0, faceOut]}>
+                  <mesh geometry={geos.insert} material={mats.rows[i].units[k]} position={[0, 0, wz + INSERT_T / 2]} castShadow />
+                  {mats.white &&
+                    insStuds.map(([sx, sy], j) => <LocatingStud key={`is${j}`} x={sx} y={sy} back={WHITE_T} />)}
+                </group>
               </group>
             ))}
             {/* end caps with thumb screws */}

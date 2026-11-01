@@ -4,20 +4,37 @@
 // 1 · Plates assembly, per floor (all separately removable by hand):
 //   hidden 20x40 support bar behind the mesh (part of the section frame)
 //   └ 4 standoffs through the mesh
-//     └ floor carrier plate (floor number) — held by 4 thumb nuts
-//       └ 2 unit plates (unit no., floor no., name) — 4 screws each
+//     └ carrier white board, screwed to the standoffs by its 4 pot magnets
+//       └ floor carrier face plate (floor number cut through) — on the magnets, 2 locating studs
+//         └ 4 threaded spacers welded to each unit position on the carrier face
+//           └ unit white board, screwed to them by its 4 pot magnets
+//             └ unit face plate (unit no., floor no., name) — on the magnets, 2 locating studs
+// No fixings show on any face (see "Magnetic fixing" in signParts). Without a white board
+// (non-cut materials) the pot magnets screw straight onto the standoffs/spacers.
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { strandDepth } from '../geometry/expandedMetal'
 import { boxGeometry, ribSpan } from '../geometry/ribPath'
 import { SIGN_MATERIALS, disposeFace, floorCarrierTexture, unitTexture, fontStack } from '../textures/signs'
-import { BASIS, Cyl, WHITE_INSET, WHITE_T, faceMaterial, signBay, useFontsReady, whiteBoardMaterial } from './signParts'
+import {
+  BASIS,
+  Cyl,
+  LocatingStud,
+  MAG_H,
+  PotMagnet,
+  WHITE_INSET,
+  WHITE_T,
+  faceMaterial,
+  signBay,
+  useFontsReady,
+  whiteBoardMaterial,
+} from './signParts'
 import { RailSign } from './SignRail'
 import { SpineSign } from './SignSpine'
 
 const T_CARRIER = 0.004 // 4 mm plate
 const T_UNIT = 0.003 // 3 mm plate
-const UNIT_SPACER = 0.012 // unit plates stand proud of the carrier and hide its nuts
+const UNIT_SPACER = 0.012 // carrier face front to unit face back
 const ZONE_W = 0.2 // floor-number panel width
 const PAD = 0.022
 
@@ -119,10 +136,13 @@ function PlateSign({ P, M, bay, fontsReady }) {
   if (!P.showSigns || !layout || !bay || !mats.rows) return null
 
   const yc = (bay.y0 + bay.y1) / 2
-  const so = P.signStandoff
+  const so = P.signStandoff // back of the carrier face plate
   const ex = P.signExplode
-  const zCarrier = so + T_CARRIER / 2 + ex * 0.12
-  const zUnit = so + T_CARRIER + UNIT_SPACER + T_UNIT / 2 + ex * 0.28
+  const faceOut = ex * 0.07 // face plates pull off their magnets first
+  const back = mats.white ? WHITE_T : MAG_H // what sits between a face plate and its standoffs
+  const zCarrier = so + ex * 0.12 // carrier assembly: back of its face plate
+  const zCarrierFace = zCarrier + faceOut // carrier face plate back, after pulling off
+  const zUnit = so + T_CARRIER + UNIT_SPACER + ex * 0.28 // back of the unit face plates
   const sx = layout.w / 2 - 0.035
   const sy = layout.h / 2 - 0.035
   const ux = layout.unitW / 2 - 0.014
@@ -133,6 +153,9 @@ function PlateSign({ P, M, bay, fontsReady }) {
     [-a, b],
     [a, b],
   ]
+  // locating studs: clear of every cut letter so they never show through
+  const carrierStuds = [-1, 1].map((s) => [s * sx, 0])
+  const unitStuds = [-1, 1].map((s) => [s * (ux - 0.03), -uy])
 
   return (
     <>
@@ -144,54 +167,46 @@ function PlateSign({ P, M, bay, fontsReady }) {
           <group key={r.floor} position={[0, r.y, 0]}>
             {/* standoffs from the hidden bar, through the mesh */}
             {corners(sx, sy).map(([x, y], j) => (
-              <Cyl key={`so${j}`} x={x} y={y} z0={-0.045} z1={so} r={0.006} material={mats.fixing} />
+              <Cyl key={`so${j}`} x={x} y={y} z0={-0.045} z1={so - back} r={0.006} material={mats.fixing} />
             ))}
-            {/* floor carrier plate */}
-            <mesh geometry={geos.carrier} material={mats.rows[i].carrier} position={[0, 0, zCarrier]} castShadow />
+            {/* carrier white board + pot magnets, then the carrier face plate on them */}
             {mats.white && (
-              <mesh geometry={geos.carrierWhite} material={mats.white} position={[0, 0, zCarrier - T_CARRIER / 2 - WHITE_T / 2]} />
+              <mesh geometry={geos.carrierWhite} material={mats.white} position={[0, 0, zCarrier - WHITE_T / 2]} />
             )}
-            {/* thumb nuts holding the carrier */}
             {corners(sx, sy).map(([x, y], j) => (
-              <Cyl
-                key={`tn${j}`}
-                x={x}
-                y={y}
-                z0={zCarrier + T_CARRIER / 2 + ex * 0.05}
-                z1={zCarrier + T_CARRIER / 2 + 0.006 + ex * 0.05}
-                r={0.011}
-                material={mats.fixing}
-              />
+              <PotMagnet key={`cm${j}`} x={x} y={y} front={zCarrier} />
             ))}
-            {/* two replaceable unit plates, each with its own 4 screws */}
+            <mesh geometry={geos.carrier} material={mats.rows[i].carrier} position={[0, 0, zCarrierFace + T_CARRIER / 2]} castShadow />
+            {carrierStuds.map(([x, y], j) => (
+              <LocatingStud key={`cs${j}`} x={x} y={y} back={zCarrierFace} />
+            ))}
+            {/* two replaceable unit plates */}
             {layout.unitX.map((x, k) => (
               <group key={k} position={[x, 0, 0]}>
+                {/* spacers welded to the carrier face */}
                 {corners(ux, uy).map(([cx, cy], j) => (
                   <Cyl
                     key={`sp${j}`}
                     x={cx}
                     y={cy}
-                    z0={zCarrier + T_CARRIER / 2}
-                    z1={zUnit - T_UNIT / 2}
+                    z0={zCarrierFace + T_CARRIER}
+                    z1={zCarrierFace + T_CARRIER + UNIT_SPACER - back}
                     r={0.004}
                     material={mats.fixing}
                   />
                 ))}
-                <mesh geometry={geos.unit} material={mats.rows[i].units[k]} position={[0, 0, zUnit]} castShadow />
                 {mats.white && (
-                  <mesh geometry={geos.unitWhite} material={mats.white} position={[0, 0, zUnit - T_UNIT / 2 - WHITE_T / 2]} />
+                  <mesh geometry={geos.unitWhite} material={mats.white} position={[0, 0, zUnit - WHITE_T / 2]} />
                 )}
                 {corners(ux, uy).map(([cx, cy], j) => (
-                  <Cyl
-                    key={`sc${j}`}
-                    x={cx}
-                    y={cy}
-                    z0={zUnit + T_UNIT / 2 + ex * 0.04}
-                    z1={zUnit + T_UNIT / 2 + 0.003 + ex * 0.04}
-                    r={0.0055}
-                    material={mats.fixing}
-                  />
+                  <PotMagnet key={`um${j}`} x={cx} y={cy} front={zUnit} />
                 ))}
+                <group position={[0, 0, faceOut]}>
+                  <mesh geometry={geos.unit} material={mats.rows[i].units[k]} position={[0, 0, zUnit + T_UNIT / 2]} castShadow />
+                  {unitStuds.map(([cx, cy], j) => (
+                    <LocatingStud key={`us${j}`} x={cx} y={cy} back={zUnit} />
+                  ))}
+                </group>
               </group>
             ))}
           </group>

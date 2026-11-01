@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fa">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Glyph lab</title>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800;900&display=swap" rel="stylesheet" />
+    <style>
+      body { margin: 0; padding: 16px; background: #222; color: #ccc; font: 13px system-ui; }
+      .row { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; }
+      canvas { background: #333; border-radius: 6px; }
+      .tag { width: 140px; }
+    </style>
+  </head>
+  <body>
+    <div id="out"></div>
+    <script type="module">
+      // Dev-only: floor numerals and laser-cut checks (not part of the build).
+      import { drawFloorGlyph } from '/src/textures/floorGlyphs.js'
+      import { bridgeIslands, countIslands } from '/src/textures/laserCut.js'
+
+      await document.fonts.load('900 100px Vazirmatn', '۱۲۳۴۵')
+      await document.fonts.load('800 100px Vazirmatn', 'نام واحد')
+      const out = document.getElementById('out')
+      const FA = '۰۱۲۳۴۵۶۷۸۹'
+      const COPPER = '#97564a'
+      const S = 165 // canvas px per box
+
+      function canvas(w, h) {
+        const c = document.createElement('canvas')
+        c.width = w
+        c.height = h
+        return [c, c.getContext('2d')]
+      }
+      // cut mask (white = plate) -> alpha, so it can punch the face
+      function maskAlpha(m) {
+        const [c, ctx] = canvas(m.width, m.height)
+        ctx.drawImage(m, 0, 0)
+        const img = ctx.getImageData(0, 0, m.width, m.height)
+        for (let i = 0; i < img.data.length; i += 4) img.data[i + 3] = img.data[i]
+        ctx.putImageData(img, 0, 0)
+        return c
+      }
+      function hexPath(ctx, w, h) {
+        const t = h / 2
+        const p = t * 0.6
+        ctx.beginPath()
+        ctx.moveTo(p, 0)
+        ctx.lineTo(w - p, 0)
+        ctx.lineTo(w, t)
+        ctx.lineTo(w - p, h)
+        ctx.lineTo(p, h)
+        ctx.lineTo(0, t)
+        ctx.closePath()
+      }
+
+      for (let n = 1; n <= 5; n++) {
+        const row = document.createElement('div')
+        row.className = 'row'
+        const label = document.createElement('div')
+        label.className = 'tag'
+        row.append(label)
+
+        // 1. reference digit in Vazirmatn Black
+        const [a, actx] = canvas(S, S)
+        actx.fillStyle = '#eee'
+        actx.font = `900 ${S * 0.8}px Vazirmatn`
+        actx.textAlign = 'center'
+        actx.textBaseline = 'middle'
+        actx.fillText(FA[n], S / 2, S / 2)
+        row.append(a)
+
+        // 2. custom numeral
+        const [b, bctx] = canvas(S, S)
+        bctx.fillStyle = '#eee'
+        drawFloorGlyph(bctx, n, S / 2, S / 2, S * 0.75)
+        row.append(b)
+
+        // 3. cut through a copper hexagon (white board behind), with the frame breakouts
+        const hw = S * 1.5
+        const hh = S
+        const [m, mctx] = canvas(hw, hh) // cut mask: white = plate
+        mctx.fillStyle = '#fff'
+        mctx.fillRect(0, 0, hw, hh)
+        mctx.fillStyle = '#000'
+        drawFloorGlyph(mctx, n, hw / 2, hh / 2, hh * 0.72, { breakout: true })
+        const islands = countIslands(mctx)
+        const [c, cctx] = canvas(hw, hh)
+        cctx.save()
+        hexPath(cctx, hw, hh)
+        cctx.clip()
+        cctx.fillStyle = '#f4f3ef'
+        cctx.fillRect(0, 0, hw, hh)
+        const [f, fctx] = canvas(hw, hh) // copper face with the cut punched out
+        fctx.fillStyle = COPPER
+        fctx.fillRect(0, 0, hw, hh)
+        fctx.globalCompositeOperation = 'destination-in'
+        fctx.drawImage(maskAlpha(m), 0, 0)
+        cctx.drawImage(f, 0, 0)
+        cctx.restore()
+        row.append(c)
+        label.textContent = `floor ${n}: ${islands} island${islands === 1 ? '' : 's'}`
+        out.append(row)
+      }
+
+      // typed text: islands found and bridged automatically
+      const row = document.createElement('div')
+      row.className = 'row'
+      const label = document.createElement('div')
+      label.className = 'tag'
+      row.append(label)
+      const tw = 620
+      const th = 170
+      const results = []
+      for (const bridged of [false, true]) {
+        const [m, mctx] = canvas(tw, th)
+        mctx.fillStyle = '#fff'
+        mctx.fillRect(0, 0, tw, th)
+        mctx.fillStyle = '#000'
+        mctx.font = `800 115px Vazirmatn`
+        mctx.textAlign = 'center'
+        mctx.textBaseline = 'middle'
+        mctx.direction = 'rtl'
+        mctx.fillText('نام واحد', tw / 2, th / 2)
+        const before = countIslands(mctx)
+        const added = bridged ? bridgeIslands(mctx, 5) : 0
+        results.push(`${before} islands${bridged ? `, ${added} bridged → ${countIslands(mctx)} left` : ''}`)
+        const [c, cctx] = canvas(tw, th)
+        cctx.fillStyle = '#f4f3ef'
+        cctx.fillRect(0, 0, tw, th)
+        const [f, fctx] = canvas(tw, th)
+        fctx.fillStyle = '#1c1d1f'
+        fctx.fillRect(0, 0, tw, th)
+        fctx.globalCompositeOperation = 'destination-in'
+        fctx.drawImage(maskAlpha(m), 0, 0)
+        cctx.drawImage(f, 0, 0)
+        row.append(c)
+      }
+      label.textContent = 'typed text: ' + results.join(' | ')
+      out.append(row)
+    </script>
+  </body>
+</html>
