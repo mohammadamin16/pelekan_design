@@ -9,9 +9,10 @@
 //       own end cap with a thumb screw, so one unit comes out without touching the other.
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
+import { strandDepth } from '../geometry/expandedMetal'
 import { boxGeometry, ribSpan } from '../geometry/ribPath'
-import { SIGN_MATERIALS, railInsertTexture, railNumeralTexture, railTileTexture } from '../textures/signs'
-import { BASIS, Cyl, signRows } from './signParts'
+import { SIGN_MATERIALS, disposeFace, railInsertTexture, railNumeralTexture, railTileTexture, fontStack } from '../textures/signs'
+import { BASIS, Cyl, WHITE_INSET, WHITE_T, faceMaterial, signRows, whiteBoardMaterial } from './signParts'
 
 const POST_W = 0.02 // 20 to the viewer
 const POST_D = 0.04 // 40 deep
@@ -46,13 +47,14 @@ export function RailSign({ P, M, bay, fontsReady }) {
   }, [bay.y0, bay.y1, P.signMargin, P.signRowH, P.signTop, P.signGap, rtl]) // eslint-disable-line
 
   const textKey = JSON.stringify([
+    P.signFont,
     P.signLang,
     P.signMaterial,
     P.signAccent,
     Object.keys(P).filter((k) => /^f\d[ab]/.test(k)).map((k) => P[k]),
   ])
   const textures = useMemo(() => {
-    const common = { lang: P.signLang, material: P.signMaterial, accent: P.signAccent }
+    const common = { font: fontStack(P.signFont), lang: P.signLang, material: P.signMaterial, accent: P.signAccent }
     const tile = railTileTexture({ ...common, w: L.tileW, h: L.inner })
     return {
       tile,
@@ -72,7 +74,10 @@ export function RailSign({ P, M, bay, fontsReady }) {
     }
   }, [L, fontsReady, textKey]) // eslint-disable-line
   useEffect(
-    () => () => [textures.tile, ...textures.rows.flatMap((r) => [r.numeral, ...r.units])].forEach((t) => t.dispose()),
+    () => () => {
+      disposeFace(textures.tile)
+      textures.rows.forEach((r) => (r.numeral.dispose(), r.units.forEach(disposeFace)))
+    },
     [textures]
   )
 
@@ -81,9 +86,10 @@ export function RailSign({ P, M, bay, fontsReady }) {
     const post = new THREE.MeshStandardMaterial({ color: mat.edge, metalness: 0.4, roughness: 0.5 })
     const edge = new THREE.MeshStandardMaterial({ color: mat.edge, metalness: mat.metalness, roughness: mat.roughness })
     const fixing = new THREE.MeshStandardMaterial({ color: '#c9cbce', metalness: 0.9, roughness: 0.28 })
-    const face = (map) => new THREE.MeshStandardMaterial({ map, metalness: mat.metalness, roughness: mat.roughness })
+    const face = (f) => faceMaterial(f, mat)
     const tileFace = face(textures.tile)
     return {
+      white: mat.cut ? whiteBoardMaterial() : null,
       metal,
       post,
       edge,
@@ -103,7 +109,7 @@ export function RailSign({ P, M, bay, fontsReady }) {
   }, [textures, mat, P.signAccent])
   useEffect(
     () => () => {
-      ;[mats.metal, mats.post, mats.edge, mats.fixing, mats.tile[4]].forEach((m) => m.dispose())
+      ;[mats.metal, mats.post, mats.edge, mats.fixing, mats.tile[4], mats.white].forEach((m) => m?.dispose())
       mats.rows.forEach((r) => [r.numeral, ...r.units.map((u) => u[4])].forEach((m) => m.dispose()))
     },
     [mats]
@@ -119,6 +125,8 @@ export function RailSign({ P, M, bay, fontsReady }) {
       tile: new THREE.BoxGeometry(L.tileW, L.inner, TILE_T),
       numeral: new THREE.PlaneGeometry(L.tileW, L.inner),
       insert: new THREE.BoxGeometry(L.insW, L.insH, INSERT_T),
+      tileWhite: new THREE.BoxGeometry(L.tileW - 2 * WHITE_INSET, L.inner - 2 * WHITE_INSET, WHITE_T),
+      insertWhite: new THREE.BoxGeometry(L.insW - 2 * WHITE_INSET, L.insH - 2 * WHITE_INSET, WHITE_T),
     }
     return g
   }, [L])
@@ -141,13 +149,14 @@ export function RailSign({ P, M, bay, fontsReady }) {
   const zTray = POST_Z0 + POST_D + TRAY_T / 2
   const zIn = POST_Z0 + POST_D + TRAY_T // front of the tray, inside the channel
   const zLip = zIn + LIP_D / 2
+  const wz = mats.white ? WHITE_T : 0 // tile + inserts sit in front of their white boards
 
   return (
     <>
       {supports.map((g, i) => (
         <mesh key={`sup${i}`} geometry={g} material={M.steel} castShadow />
       ))}
-      <group position={[P.wallX - P.meshOffset, yc, 0]} quaternion={BASIS}>
+      <group position={[P.wallX - P.meshOffset - strandDepth(P), yc, 0]} quaternion={BASIS}>
         {/* posts + their bolts through the mesh */}
         {postX.map((x, i) => (
           <group key={`post${i}`}>
@@ -186,25 +195,23 @@ export function RailSign({ P, M, bay, fontsReady }) {
               />
             ))}
             {/* floor tile + raised numeral */}
-            <mesh geometry={geos.tile} material={mats.tile} position={[0, 0, zIn + TILE_T / 2]} castShadow />
+            <mesh geometry={geos.tile} material={mats.tile} position={[0, 0, zIn + wz + TILE_T / 2]} castShadow />
+            {mats.white && <mesh geometry={geos.tileWhite} material={mats.white} position={[0, 0, zIn + WHITE_T / 2]} />}
             {Array.from({ length: NUM_LAYERS }, (_, k) => (
               <mesh
                 key={`num${k}`}
                 geometry={geos.numeral}
                 material={mats.rows[i].numeral}
-                position={[0, 0, zIn + TILE_T + 0.0005 + (k * NUM_T) / (NUM_LAYERS - 1)]}
+                position={[0, 0, zIn + wz + TILE_T + 0.0005 + (k * NUM_T) / (NUM_LAYERS - 1)]}
                 castShadow={k === NUM_LAYERS - 1}
               />
             ))}
             {/* unit inserts slide out sideways through their own open end */}
             {L.unitX.map((x, k) => (
-              <mesh
-                key={`ins${k}`}
-                geometry={geos.insert}
-                material={mats.rows[i].units[k]}
-                position={[x + Math.sign(x) * ex * (L.insW + 0.08), 0, zIn + INSERT_T / 2 + 0.0005]}
-                castShadow
-              />
+              <group key={`ins${k}`} position={[x + Math.sign(x) * ex * (L.insW + 0.08), 0, zIn + 0.0005]}>
+                <mesh geometry={geos.insert} material={mats.rows[i].units[k]} position={[0, 0, wz + INSERT_T / 2]} castShadow />
+                {mats.white && <mesh geometry={geos.insertWhite} material={mats.white} position={[0, 0, WHITE_T / 2]} />}
+              </group>
             ))}
             {/* end caps with thumb screws */}
             {[1, -1].map((s) => {

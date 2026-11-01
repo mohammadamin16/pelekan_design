@@ -37,6 +37,55 @@ export function buildProfile(P, zBottom) {
   return { pts, sA: r, D }
 }
 
+// Profile point at arc length v (linear between the profile samples).
+export function profileAt(prof, v) {
+  const pts = prof.pts
+  let lo = 0
+  let hi = pts.length - 1
+  if (v <= pts[0].v) return pts[0]
+  if (v >= pts[hi].v) return pts[hi]
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (pts[mid].v <= v) lo = mid
+    else hi = mid
+  }
+  const a = pts[lo]
+  const b = pts[hi]
+  const t = (v - a.v) / Math.max(1e-9, b.v - a.v)
+  const ns = a.ns + (b.ns - a.ns) * t
+  const nz = a.nz + (b.nz - a.nz) * t
+  const nl = Math.hypot(ns, nz) || 1
+  return { s: a.s + (b.s - a.s) * t, z: a.z + (b.z - a.z) * t, ns: ns / nl, nz: nz / nl, v }
+}
+
+// Part of a profile between arc lengths v0 and v1 (v values kept, so mesh
+// patterns stay continuous across a break).
+export function sliceProfile(prof, v0, v1) {
+  const inner = prof.pts.filter((p) => p.v > v0 + 1e-6 && p.v < v1 - 1e-6)
+  return { ...prof, pts: [profileAt(prof, v0), ...inner, profileAt(prof, v1)] }
+}
+
+// Arc length of the profile at horizontal distance `s` along the ceiling run
+// (null when s is not on the straight ceiling part).
+export function ceilingV(prof, s) {
+  const r = prof.sA
+  if (s < r + 1e-6 || s > r + prof.D - 1e-6) return null
+  return prof.pts[1].v + (Math.PI / 2) * r + (s - r)
+}
+
+// Cut the sheet into separate panels: `gaps` are [v0, v1] arc-length ranges left open.
+export function cutProfile(prof, gaps) {
+  const vMax = prof.pts[prof.pts.length - 1].v
+  const pieces = []
+  let v = 0
+  ;[...gaps].sort((a, b) => a[0] - b[0]).forEach(([g0, g1]) => {
+    if (g0 - v > 0.02) pieces.push(sliceProfile(prof, v, g0))
+    v = Math.max(v, g1)
+  })
+  if (vMax - v > 0.02) pieces.push(sliceProfile(prof, v, vMax))
+  return pieces.length ? pieces : [prof]
+}
+
 // Profile point (+ offset k along the inward normal) at plan position y -> Rhino world.
 export function toWorld(P, prof, p, y, k = 0) {
   const s = p.s + p.ns * k
@@ -183,4 +232,43 @@ export function worldUV(g) {
   }
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   return g
+}
+
+// Side plate closing the far-end drop of a section, in the plane of the section
+// edge y. Seen from the side it fills from where the return bend starts out to
+// the back of the tray (depth t), with the outer corner following the bend.
+// Built in profile space (s, z) and bent onto the canopy like everything else.
+export function finGeometry(P, prof, y, t, thick = 0.005) {
+  const pts = prof.pts
+  const end = pts[pts.length - 1]
+  const Zc = P.canopyHeight
+  const s0 = prof.sA + prof.D // start of the return bend
+  const rr = Math.max(0.01, Math.min(P.returnRadius, P.returnDrop))
+  const zb = end.z
+  const shape = new THREE.Shape()
+  shape.moveTo(s0, zb)
+  shape.lineTo(s0, Zc + t)
+  shape.absarc(s0, Zc - rr, rr + t, Math.PI / 2, 0, true)
+  shape.lineTo(s0 + rr + t, zb)
+  shape.closePath()
+  const g = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false, curveSegments: 16 })
+  const pos = g.attributes.position
+  const p = { s: 0, z: 0, ns: 0, nz: 0 }
+  for (let i = 0; i < pos.count; i++) {
+    p.s = pos.getX(i)
+    p.z = pos.getY(i)
+    const w = toWorld(P, prof, p, y + pos.getZ(i) - thick / 2)
+    pos.setXYZ(i, w.x, w.y, w.z)
+  }
+  g.computeVertexNormals()
+  return g
+}
+
+// Plate standing on the free end of a section that stops on the ceiling,
+// closing the gap up to the ceiling above it (e.g. the stair void).
+export function endPlateGeometry(P, prof, y0, y1, top, t = 0.005) {
+  const end = prof.pts[prof.pts.length - 1]
+  const a = toWorld(P, prof, end, y0)
+  const b = toWorld(P, prof, end, y1)
+  return boxGeometry([a.x - t, a.y, end.z], [a.x, b.y, top])
 }

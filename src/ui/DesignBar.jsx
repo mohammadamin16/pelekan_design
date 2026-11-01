@@ -11,6 +11,7 @@ import {
   switchTo,
   useDesigns,
 } from '../designs'
+import { SIGN_FONTS } from '../textures/signs'
 
 const typing = (e) => {
   const t = e.target
@@ -32,10 +33,14 @@ export function DesignBar({ P, apply }) {
         const i = SIGN_STYLES.findIndex((x) => x.id === P.signStyle)
         apply({ signStyle: SIGN_STYLES[(i + 1) % SIGN_STYLES.length].id })
       }
+      if (e.key === 'f' || e.key === 'F') {
+        const i = SIGN_FONTS.findIndex((x) => x.id === P.signFont)
+        apply({ signFont: SIGN_FONTS[(i + 1) % SIGN_FONTS.length].id, showSigns: true })
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [apply, P.signStyle])
+  }, [apply, P.signStyle, P.signFont])
 
   const copy = () => {
     const name = prompt('Name for the new design:', `${active?.name || 'Design'} copy`)
@@ -92,6 +97,20 @@ export function DesignBar({ P, apply }) {
         </button>
       ))}
       <span className="keys">G</span>
+      <span className="sep" />
+      <span className="label">Font</span>
+      {SIGN_FONTS.map((f) => (
+        <button
+          key={f.id}
+          className={P.signFont === f.id ? 'on' : ''}
+          onClick={() => apply({ signFont: f.id, showSigns: true })}
+          style={{ fontFamily: `${f.family}, system-ui, sans-serif` }}
+          title={`Sign lettering in ${f.name}`}
+        >
+          {f.name}
+        </button>
+      ))}
+      <span className="keys">F</span>
     </div>
   )
 }

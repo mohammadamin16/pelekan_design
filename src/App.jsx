@@ -8,6 +8,7 @@ import { allDesigns, createFrom, paramsOf, record, resetActive, useDesigns } fro
 import { useApp } from './store'
 import { useMaterials } from './model/materials'
 import { Room } from './model/Room'
+import { RhinoReference } from './model/RhinoReference'
 import { Feature } from './model/Feature'
 import { Signage } from './model/Signage'
 import { LensSync, Navigation } from './controls/Navigation'
@@ -93,7 +94,8 @@ function Model({ P }) {
   const M = useMaterials(P)
   return (
     <group rotation-x={-Math.PI / 2}>
-      <Room P={P} M={M} />
+      {P.rhinoRef !== 'solid' && <Room P={P} M={M} />}
+      <RhinoReference mode={P.rhinoRef} />
       <Feature P={P} M={M} />
       <Signage P={P} M={M} />
     </group>
@@ -190,7 +192,7 @@ export default function App() {
         <div id="hud-cam" />
         <div className="keys">
           {mode === 'orbit'
-            ? 'Orbit: left-drag rotate · right-drag pan · wheel zoom · 1-6 views · [ ] design · G guide board · Tab walk'
+            ? 'Orbit: left-drag rotate · right-drag pan · wheel zoom · 1-8 views · [ ] design · G guide board · F font · Tab walk'
             : 'Walk: WASD move · Shift run · Q/E height · Tab orbit'}
         </div>
       </div>

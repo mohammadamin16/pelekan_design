@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { COLUMNS } from '../params'
 import { boxGeometry, worldUV } from '../geometry/ribPath'
+import { rhino006Room } from '../geometry/rhino006'
 
 const FLOOR = { x0: -32, x1: 0, y0: -8, y1: 28 }
 const SKIRT = 0.25
@@ -17,6 +18,7 @@ export function Room({ P, M }) {
   const { wallX, wallYMin, wallYMax, ceilingHeight: H, marbleTop } = P
 
   const parts = useDisposable(() => {
+    if (P.roomPlan === 'rhino006') return rhino006Room(P)
     const list = []
     // floor (normal +Z)
     const floor = new THREE.PlaneGeometry(FLOOR.x1 - FLOOR.x0, FLOOR.y1 - FLOOR.y0)
@@ -73,7 +75,7 @@ export function Room({ P, M }) {
       })
     }
     return list
-  }, [wallX, wallYMin, wallYMax, H, marbleTop, P.showColumns])
+  }, [wallX, wallYMin, wallYMax, H, marbleTop, P.showColumns, P.roomPlan])
 
   return parts.map((p) =>
     p.ceiling && !P.showCeiling ? null : (

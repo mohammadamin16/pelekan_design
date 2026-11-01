@@ -1,17 +1,16 @@
-// Guide board 3 · Spine & chevrons.
+// Guide board 3 · Hexagons & chevrons.
 //
-// Two hidden 20x40 bars behind the mesh (top + bottom of the board)
-// └ 1 central vertical 20x40 spine on the mesh (20 side to the viewer), bolted through
-//   └ 5 floor crossbars (20x40, 20 high facing the viewer), one bolt each to the spine
-//     ├ hexagonal floor plate (pointed sides) with a raised floor numeral — 2 thumb nuts
-//     └ 2 chevron unit tags (unit no., floor no., name), each on its own 2 screws.
-//       The inner notch of each tag wraps the point of the hexagon; the outer end points
-//       out toward the unit. A whole floor lifts off the spine; any tag comes off alone.
+// 5 floor crossbars (20x40, 20 high facing the viewer), each bolted through the mesh
+// ├ hexagonal floor plate (pointed sides) with a raised floor numeral — 2 thumb nuts
+// └ 2 chevron unit tags (unit no., floor no., name), each on its own 2 screws.
+//   The inner notch of each tag wraps the point of the hexagon; the outer end points
+//   out toward the unit. A whole floor comes off on its bar; any tag comes off alone.
+// (No spine and no bars behind the mesh: the floors fix straight to the sheet.)
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import { boxGeometry, ribSpan } from '../geometry/ribPath'
-import { SIGN_MATERIALS, hexFloorTexture, railInsertTexture, railNumeralTexture } from '../textures/signs'
-import { BASIS, Cyl, signRows } from './signParts'
+import { strandDepth } from '../geometry/expandedMetal'
+import { SIGN_MATERIALS, disposeFace, hexFloorTexture, railInsertTexture, railNumeralTexture, fontStack } from '../textures/signs'
+import { BASIS, Cyl, WHITE_INSET, WHITE_T, faceMaterial, signRows, whiteBoardMaterial } from './signParts'
 
 const PROF_W = 0.02 // 20 to the viewer
 const PROF_D = 0.04 // 40 deep
@@ -22,7 +21,6 @@ const T_TAG = 0.003
 const GAP = 0.01 // between hexagon point and tag notch
 const NUM_LAYERS = 5
 const NUM_T = 0.004
-const RUN = 0.07 // spine runs past the top and bottom floors
 
 // Six-point outline: flat top/bottom, pointed (convex) or notched (concave) ends.
 // left/right: +1 = pointing outward, -1 = notched inward.
@@ -47,6 +45,11 @@ function fitTexture(tex, w, h) {
   tex.offset.set(0.5, 0.5)
   return tex
 }
+const fitFace = (f, w, h) => {
+  fitTexture(f.map, w, h)
+  if (f.alpha) fitTexture(f.alpha, w, h)
+  return f
+}
 
 export function SpineSign({ P, M, bay, fontsReady }) {
   const rtl = P.signLang === 'fa'
@@ -64,12 +67,11 @@ export function SpineSign({ P, M, bay, fontsReady }) {
     // unit 1 at the reading start: right for Persian, left for English
     const unitX = rtl ? [tagCx, -tagCx] : [-tagCx, tagCx]
     const barLen = 2 * (w / 2 - p - 0.02)
-    const top = rows[0].y + h / 2 + RUN
-    const bottom = rows[rows.length - 1].y - h / 2 - RUN
-    return { w, h, rows, t, p, hexFlat, hexW, xi, tagLen, tagCx, unitX, barLen, top, bottom }
+    return { w, h, rows, t, p, hexFlat, hexW, xi, tagLen, tagCx, unitX, barLen }
   }, [bay.y0, bay.y1, P.signMargin, P.signRowH, P.signTop, P.signGap, rtl]) // eslint-disable-line
 
   const textKey = JSON.stringify([
+    P.signFont,
     P.signLang,
     P.signMaterial,
     P.signAccent,
@@ -77,14 +79,14 @@ export function SpineSign({ P, M, bay, fontsReady }) {
   ])
   const ink = '#17181a'
   const textures = useMemo(() => {
-    const common = { lang: P.signLang, material: P.signMaterial, accent: P.signAccent }
+    const common = { font: fontStack(P.signFont), lang: P.signLang, material: P.signMaterial, accent: P.signAccent }
     const H = 2 * L.t
     return {
       hex: fitTexture(hexFloorTexture({ ...common, w: L.hexW, h: H, ink }), L.hexW, H),
       rows: L.rows.map(({ floor }) => ({
         numeral: railNumeralTexture({ ...common, w: L.hexW, h: H, floor }),
         units: ['a', 'b'].map((k) =>
-          fitTexture(
+          fitFace(
             railInsertTexture({
               ...common,
               w: L.tagLen,
@@ -102,7 +104,10 @@ export function SpineSign({ P, M, bay, fontsReady }) {
     }
   }, [L, fontsReady, textKey]) // eslint-disable-line
   useEffect(
-    () => () => [textures.hex, ...textures.rows.flatMap((r) => [r.numeral, ...r.units])].forEach((t) => t.dispose()),
+    () => () => {
+      textures.hex.dispose()
+      textures.rows.forEach((r) => (r.numeral.dispose(), r.units.forEach(disposeFace)))
+    },
     [textures]
   )
 
@@ -113,6 +118,7 @@ export function SpineSign({ P, M, bay, fontsReady }) {
     const fixing = new THREE.MeshStandardMaterial({ color: '#c9cbce', metalness: 0.9, roughness: 0.28 })
     const hexFace = new THREE.MeshStandardMaterial({ map: textures.hex, metalness: 0.65, roughness: 0.33 })
     return {
+      white: mat.cut ? whiteBoardMaterial() : null,
       metal,
       prof,
       edge,
@@ -126,15 +132,13 @@ export function SpineSign({ P, M, bay, fontsReady }) {
           metalness: 0.3,
           roughness: 0.45,
         }),
-        units: r.units.map(
-          (tex) => [new THREE.MeshStandardMaterial({ map: tex, metalness: mat.metalness, roughness: mat.roughness }), edge]
-        ),
+        units: r.units.map((f) => [faceMaterial(f, mat), edge]),
       })),
     }
   }, [textures, mat, P.signAccent])
   useEffect(
     () => () => {
-      ;[mats.metal, mats.prof, mats.edge, mats.fixing, mats.hex[0]].forEach((m) => m.dispose())
+      ;[mats.metal, mats.prof, mats.edge, mats.fixing, mats.hex[0], mats.white].forEach((m) => m?.dispose())
       mats.rows.forEach((r) => [r.numeral, ...r.units.map((u) => u[0])].forEach((m) => m.dispose()))
     },
     [mats]
@@ -144,25 +148,17 @@ export function SpineSign({ P, M, bay, fontsReady }) {
     const H = 2 * L.t
     // right-hand tag: notched inner end, pointed outer end; left-hand one is its mirror
     return {
-      spine: new THREE.BoxGeometry(PROF_W, L.top - L.bottom, PROF_D),
       bar: new THREE.BoxGeometry(L.barLen, PROF_W, PROF_D),
       hex: extrude(outline(L.hexW, L.t, L.p, 1, 1), T_HEX),
       tagR: extrude(outline(L.tagLen, L.t, L.p, -1, 1), T_TAG),
       tagL: extrude(outline(L.tagLen, L.t, L.p, 1, -1), T_TAG),
+      // white boards behind the tags: same outline, 3 mm in all round
+      tagRWhite: extrude(outline(L.tagLen - 2 * WHITE_INSET, L.t - WHITE_INSET, (L.p * (L.t - WHITE_INSET)) / L.t, -1, 1), WHITE_T),
+      tagLWhite: extrude(outline(L.tagLen - 2 * WHITE_INSET, L.t - WHITE_INSET, (L.p * (L.t - WHITE_INSET)) / L.t, 1, -1), WHITE_T),
       numeral: new THREE.PlaneGeometry(L.hexW, H),
     }
   }, [L])
   useEffect(() => () => Object.values(geos).forEach((g) => g.dispose()), [geos])
-
-  const supports = useMemo(() => {
-    const xm = P.wallX - P.meshOffset
-    const [k0, k1] = ribSpan(P)
-    const inset = P.separateFrames ? P.ribWidth : 0
-    return [L.top - 0.03, L.bottom + 0.03].map((z) =>
-      boxGeometry([xm - k1, bay.y0 + inset, z - P.ribWidth / 2], [xm - k0, bay.y1 - inset, z + P.ribWidth / 2])
-    )
-  }, [L, bay.y0, bay.y1, P.wallX, P.meshOffset, P.ribDepth, P.ribWidth, P.ribsBehind, P.separateFrames]) // eslint-disable-line
-  useEffect(() => () => supports.forEach((g) => g.dispose()), [supports])
 
   const ex = P.signExplode
   const yc = (bay.y0 + bay.y1) / 2
@@ -174,21 +170,16 @@ export function SpineSign({ P, M, bay, fontsReady }) {
 
   return (
     <>
-      {supports.map((g, i) => (
-        <mesh key={`sup${i}`} geometry={g} material={M.steel} castShadow />
-      ))}
-      <group position={[P.wallX - P.meshOffset, yc, 0]} quaternion={BASIS}>
-        {/* central spine, bolted through the mesh top and bottom */}
-        <mesh geometry={geos.spine} material={M.steel} position={[0, (L.top + L.bottom) / 2, Z0 + PROF_D / 2]} castShadow />
-        {[L.top - 0.03, L.bottom + 0.03].map((y, j) => (
-          <Cyl key={j} x={0} y={y} z0={-0.045} z1={zBarFront + 0.003} r={0.005} material={mats.fixing} />
-        ))}
+      <group position={[P.wallX - P.meshOffset - strandDepth(P), yc, 0]} quaternion={BASIS}>
 
         {L.rows.map((r, i) => (
           <group key={r.floor} position={[0, r.y, 0]}>
-            {/* floor crossbar (hidden behind the plates, shows in the gaps) */}
+            {/* floor crossbar (hidden behind the plates), bolted through the mesh at both ends */}
             <group position={[0, 0, ex * 0.05]}>
               <mesh geometry={geos.bar} material={M.steel} position={[0, 0, Z0 + PROF_D / 2 + 0.0005]} castShadow />
+              {[-1, 1].map((sd) => (
+                <Cyl key={sd} x={sd * (L.barLen / 2 - 0.03)} y={0} z0={-0.045} z1={zBarFront + 0.003} r={0.005} material={mats.fixing} />
+              ))}
             </group>
 
             {/* hexagonal floor plate */}
@@ -229,6 +220,13 @@ export function SpineSign({ P, M, bay, fontsReady }) {
                     position={[0, 0, zPlate]}
                     castShadow
                   />
+                  {mats.white && (
+                    <mesh
+                      geometry={dir > 0 ? geos.tagRWhite : geos.tagLWhite}
+                      material={mats.white}
+                      position={[0, 0, zPlate - WHITE_T]}
+                    />
+                  )}
                   {tagPins.map((px, j) => (
                     <group key={`tp${j}`}>
                       <Cyl x={px * dir} y={0} z0={zBarFront} z1={zPlate} r={0.004} material={mats.fixing} />

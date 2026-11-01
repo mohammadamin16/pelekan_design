@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, PointerLockControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { COLUMNS, PRESETS, r2t, t2r } from '../params'
+import { OBSTACLES } from '../geometry/rhino006'
 import { useApp } from '../store'
 
 const isTyping = (e) => {
@@ -95,7 +96,8 @@ function Walk({ P }) {
     let [x, y] = t2r(camera.position.toArray())
     x = Math.min(x, P.wallX - P.meshOffset - (P.ribsBehind ? 0 : P.ribDepth) - R)
     if (P.showColumns) {
-      for (const c of COLUMNS) {
+      const boxes = P.roomPlan === 'rhino006' ? OBSTACLES : COLUMNS
+      for (const c of boxes) {
         const b =
           c.kind === 'pier'
             ? { x0: P.wallX - c.depth, x1: P.wallX, y0: c.y0, y1: c.y1 }
@@ -168,7 +170,7 @@ export function Navigation({ P, onLens }) {
         const s = useApp.getState()
         s.setMode(s.mode === 'orbit' ? 'walk' : 'orbit')
       }
-      const n = { Digit1: 'view1', Digit2: 'view2', Digit3: 'directory', Digit4: 'overview', Digit5: 'side', Digit6: 'top' }[e.code]
+      const n = { Digit1: 'view1', Digit2: 'view2', Digit3: 'directory', Digit4: 'overview', Digit5: 'side', Digit6: 'top', Digit7: 'rhino006', Digit8: 'columns' }[e.code]
       if (n && useApp.getState().mode === 'orbit') useApp.getState().goView(n)
     }
     window.addEventListener('keydown', onKey)

@@ -22,7 +22,10 @@ export function useMaterials(P) {
       alphaToCoverage: true,
       transparent: false,
     })
-    return { marble, floor, plaster, ceiling, backing, steel, mesh }
+    const mesh3d = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide })
+    const trim = new THREE.MeshStandardMaterial({ color: '#592e19', roughness: 0.5 }) // dark strip over the niches
+    const door = new THREE.MeshStandardMaterial({ color: '#e6e4df', roughness: 0.7 })
+    return { marble, floor, plaster, ceiling, backing, steel, mesh, mesh3d, trim, door }
   }, [])
 
   useEffect(() => () => Object.values(M).forEach((m) => m.dispose()), [M])
@@ -38,6 +41,7 @@ export function useMaterials(P) {
 
   M.plaster.color.set(P.plasterColor)
   M.ceiling.color.set(P.plasterColor)
+  M.door.color.set(P.plasterColor).multiplyScalar(0.94)
 
   if (M.mesh.map !== meshTex.map) {
     M.mesh.map = meshTex.map
@@ -49,6 +53,9 @@ export function useMaterials(P) {
   M.mesh.color.set(P.meshColor)
   M.mesh.metalness = P.meshMetalness
   M.mesh.roughness = P.meshRoughness
+  M.mesh3d.color.set(P.meshColor)
+  M.mesh3d.metalness = P.meshMetalness
+  M.mesh3d.roughness = P.meshRoughness
   // profiles are always the mesh colour
   M.steel.color.set(P.meshColor)
   M.steel.metalness = P.meshMetalness

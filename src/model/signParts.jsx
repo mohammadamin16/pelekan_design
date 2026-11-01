@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import * as THREE from 'three'
 import { featureLayout } from '../params'
+import { SIGN_FONTS, WHITE_BOARD } from '../textures/signs'
 
 // local board space: +x = viewer's right (world -Y), +y = up (world +Z), +z = toward viewer (world -X)
 export const BASIS = new THREE.Quaternion().setFromRotationMatrix(
@@ -12,17 +13,37 @@ export function useFontsReady() {
   const [ready, setReady] = useState(false)
   useEffect(() => {
     let alive = true
-    Promise.all([
-      document.fonts.load(`800 40px Vazirmatn`, 'طبقه 5'),
-      document.fonts.load(`600 40px Vazirmatn`, 'واحد'),
-      document.fonts.load(`400 40px Vazirmatn`, 'طبقه ۵'),
-    ])
+    Promise.all(
+      SIGN_FONTS.flatMap(({ family }) => [
+        document.fonts.load(`800 40px ${family}`, 'طبقه 5'),
+        document.fonts.load(`600 40px ${family}`, 'واحد'),
+        document.fonts.load(`400 40px ${family}`, 'طبقه ۵'),
+      ])
+    )
       .catch(() => {})
       .finally(() => alive && setReady(true))
     return () => (alive = false)
   }, [])
   return ready
 }
+
+// Laser-cut text: the plate face is cut out (alphaMap) where its light text is, and a
+// white board sits right behind the plate, so the text reads white through the plate.
+export const WHITE_T = 0.003 // 3 mm white acrylic behind the plate
+export const WHITE_INSET = 0.003 // kept 3 mm inside the plate outline so its edge doesn't show
+
+export function faceMaterial({ map, alpha }, mat) {
+  return new THREE.MeshStandardMaterial({
+    map,
+    alphaMap: alpha,
+    alphaTest: alpha ? 0.5 : 0,
+    metalness: mat.metalness,
+    roughness: mat.roughness,
+  })
+}
+
+export const whiteBoardMaterial = () =>
+  new THREE.MeshStandardMaterial({ color: WHITE_BOARD, metalness: 0, roughness: 0.35 })
 
 const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 20).rotateX(Math.PI / 2) // axis along local z
 

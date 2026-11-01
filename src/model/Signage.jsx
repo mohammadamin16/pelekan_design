@@ -1,5 +1,5 @@
 // Floor directory (guide board) on one of the middle mesh sections, never the first or last.
-// Variants: 1 · Plates (below), 2 · Rail & cassettes (SignRail.jsx), 3 · Spine & chevrons (SignSpine.jsx).
+// Variants: 1 · Plates (below), 2 · Rail & cassettes (SignRail.jsx), 3 · Hexagons & chevrons (SignSpine.jsx).
 //
 // 1 · Plates assembly, per floor (all separately removable by hand):
 //   hidden 20x40 support bar behind the mesh (part of the section frame)
@@ -8,9 +8,10 @@
 //       └ 2 unit plates (unit no., floor no., name) — 4 screws each
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
+import { strandDepth } from '../geometry/expandedMetal'
 import { boxGeometry, ribSpan } from '../geometry/ribPath'
-import { SIGN_MATERIALS, floorCarrierTexture, unitTexture } from '../textures/signs'
-import { BASIS, Cyl, signBay, useFontsReady } from './signParts'
+import { SIGN_MATERIALS, disposeFace, floorCarrierTexture, unitTexture, fontStack } from '../textures/signs'
+import { BASIS, Cyl, WHITE_INSET, WHITE_T, faceMaterial, signBay, useFontsReady, whiteBoardMaterial } from './signParts'
 import { RailSign } from './SignRail'
 import { SpineSign } from './SignSpine'
 
@@ -43,6 +44,7 @@ function PlateSign({ P, M, bay, fontsReady }) {
 
   // textures (rebuilt when text/material/layout changes)
   const textKey = JSON.stringify([
+    P.signFont,
     P.signLang,
     P.signMaterial,
     P.signAccent,
@@ -50,7 +52,7 @@ function PlateSign({ P, M, bay, fontsReady }) {
   ])
   const textures = useMemo(() => {
     if (!layout) return null
-    const common = { lang: P.signLang, material: P.signMaterial, accent: P.signAccent }
+    const common = { font: fontStack(P.signFont), lang: P.signLang, material: P.signMaterial, accent: P.signAccent }
     return layout.rows.map(({ floor }) => ({
       carrier: floorCarrierTexture({ ...common, w: layout.w, h: layout.h, zoneW: ZONE_W, floor }),
       units: ['a', 'b'].map((k) =>
@@ -65,23 +67,24 @@ function PlateSign({ P, M, bay, fontsReady }) {
       ),
     }))
   }, [layout, fontsReady, textKey]) // eslint-disable-line
-  useEffect(() => () => textures?.forEach((r) => [r.carrier, ...r.units].forEach((t) => t.dispose())), [textures])
+  useEffect(() => () => textures?.forEach((r) => [r.carrier, ...r.units].forEach(disposeFace)), [textures])
 
   const mats = useMemo(() => {
     const edge = new THREE.MeshStandardMaterial({ color: mat.edge, metalness: mat.metalness, roughness: mat.roughness })
     const fixing = new THREE.MeshStandardMaterial({ color: '#c9cbce', metalness: 0.9, roughness: 0.28 })
-    const face = (map) =>
-      new THREE.MeshStandardMaterial({ map, metalness: mat.metalness, roughness: mat.roughness })
+    const face = (f) => faceMaterial(f, mat)
+    const white = mat.cut ? whiteBoardMaterial() : null
     const rows = textures?.map((r) => ({
       carrier: [edge, edge, edge, edge, face(r.carrier), edge],
       units: r.units.map((t) => [edge, edge, edge, edge, face(t), edge]),
     }))
-    return { edge, fixing, rows }
+    return { edge, fixing, white, rows }
   }, [textures, mat])
   useEffect(
     () => () => {
       mats.edge.dispose()
       mats.fixing.dispose()
+      mats.white?.dispose()
       mats.rows?.forEach((r) => [r.carrier[4], ...r.units.map((u) => u[4])].forEach((m) => m.dispose()))
     },
     [mats]
@@ -107,9 +110,11 @@ function PlateSign({ P, M, bay, fontsReady }) {
     return {
       carrier: new THREE.BoxGeometry(layout.w, layout.h, T_CARRIER),
       unit: new THREE.BoxGeometry(layout.unitW, layout.unitH, T_UNIT),
+      carrierWhite: new THREE.BoxGeometry(layout.w - 2 * WHITE_INSET, layout.h - 2 * WHITE_INSET, WHITE_T),
+      unitWhite: new THREE.BoxGeometry(layout.unitW - 2 * WHITE_INSET, layout.unitH - 2 * WHITE_INSET, WHITE_T),
     }
   }, [layout])
-  useEffect(() => () => geos && (geos.carrier.dispose(), geos.unit.dispose()), [geos])
+  useEffect(() => () => geos && Object.values(geos).forEach((g) => g.dispose()), [geos])
 
   if (!P.showSigns || !layout || !bay || !mats.rows) return null
 
@@ -134,7 +139,7 @@ function PlateSign({ P, M, bay, fontsReady }) {
       {supports.map((g, i) => (
         <mesh key={`sup${i}`} geometry={g} material={M.steel} castShadow />
       ))}
-      <group position={[P.wallX - P.meshOffset, yc, 0]} quaternion={BASIS}>
+      <group position={[P.wallX - P.meshOffset - strandDepth(P), yc, 0]} quaternion={BASIS}>
         {layout.rows.map((r, i) => (
           <group key={r.floor} position={[0, r.y, 0]}>
             {/* standoffs from the hidden bar, through the mesh */}
@@ -143,6 +148,9 @@ function PlateSign({ P, M, bay, fontsReady }) {
             ))}
             {/* floor carrier plate */}
             <mesh geometry={geos.carrier} material={mats.rows[i].carrier} position={[0, 0, zCarrier]} castShadow />
+            {mats.white && (
+              <mesh geometry={geos.carrierWhite} material={mats.white} position={[0, 0, zCarrier - T_CARRIER / 2 - WHITE_T / 2]} />
+            )}
             {/* thumb nuts holding the carrier */}
             {corners(sx, sy).map(([x, y], j) => (
               <Cyl
@@ -170,6 +178,9 @@ function PlateSign({ P, M, bay, fontsReady }) {
                   />
                 ))}
                 <mesh geometry={geos.unit} material={mats.rows[i].units[k]} position={[0, 0, zUnit]} castShadow />
+                {mats.white && (
+                  <mesh geometry={geos.unitWhite} material={mats.white} position={[0, 0, zUnit - T_UNIT / 2 - WHITE_T / 2]} />
+                )}
                 {corners(ux, uy).map(([cx, cy], j) => (
                   <Cyl
                     key={`sc${j}`}

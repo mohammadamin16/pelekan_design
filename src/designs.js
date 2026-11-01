@@ -11,7 +11,7 @@ export const BUILTIN = [
   {
     id: 'a',
     name: 'A · Original',
-    note: '5 sections, white mesh, white-backed ends',
+    note: '5 sections, straight ceiling run',
     params: {},
   },
   {
@@ -20,15 +20,54 @@ export const BUILTIN = [
     note: '7 sections, metallic mesh fanning out over the ceiling, no rail',
     params: {
       bays: '0.60, 0.60, 0.60, 1.40, 0.60, 0.60, 0.60',
-      whiteBays: 'none', // leva can't set an empty string
       showRail: false,
       filletRadius: 0.5,
       ceilingRun: 3.6,
       fanSpread: 0.25,
       meshMetalness: 0.7,
       meshRoughness: 0.35,
+      ceilingBreaks: 'none', // 7 sections: the 5-section break pattern doesn't apply
       signBay: 3, // middle of 7
       signMaterial: 'blackAcrylic',
+    },
+  },
+  {
+    id: 'c',
+    name: 'C · Rhino 006',
+    note: 'karimkhan 006.3dm: measured room, canopy crosses the corridor and bends 300 down on the column side',
+    params: {
+      // the room as drawn in the Rhino model (niches, columns, stairs, slab void)
+      roomPlan: 'rhino006',
+      wallX: -10.887,
+      wallYMin: 0,
+      wallYMax: 19.92,
+      ceilingHeight: 2.5,
+      marbleTop: 2.3,
+      // five sections between y 6.82 and 12.315, 150 mm apart
+      featureY: 9.5675,
+      bays: '1.015, 0.815, 1.32, 0.955, 0.79',
+      pilasterDepth: 0,
+      plinthHeight: 0.3, // tray starts on top of the 300 baseboard line
+      plinthDepth: 0,
+      showRail: false,
+      // tray 50 mm off the wall, 300 mm bends, mesh line at 2.45 under a 2.50 slab
+      meshOffset: 0.05,
+      canopyHeight: 2.45,
+      filletRadius: 0.3,
+      ceilingRun: 3.6,
+      returnDrop: 0.3, // column side: only the 300 bend (lift / elevator below), ends at 2.15
+      returnRadius: 0.3,
+      // per section (parts split with '/'):
+      //  2: bend over the column, then stepped in to clear the stair column
+      //  3: stops against the elevator column, then stepped in
+      //  4: over the stairs, no bend, closed up into the void at 2.70
+      sectionSplits: '-, 0.495, 0.82, -, -',
+      sectionRuns: '3.6, 3.6/2.7, 3.15/2.7, 4.0, 3.6',
+      sectionDrops: '0.3, 0.3/0.3, 0/0.3, 0, 0.3',
+      ribDepth: 0.047, // the trays are 50 deep
+      sideFins: true,
+      endPlates: true,
+      signBay: 2,
     },
   },
 ]
@@ -39,6 +78,7 @@ export const SHARED = new Set([
   ...Object.keys(SCHEMA.Lighting),
   'signExplode',
   'signStyle', // guide board is chosen independently of the wall design
+  'signFont', // and so is the sign typeface
   'meshColor', // jade mesh + profiles in every design
   'signAccent', // copper floor plates in every design
 ])
@@ -53,10 +93,10 @@ const diff = (P, base) => Object.fromEntries(Object.entries(P).filter(([k, v]) =
 const designPart = (P) => pick(P, (k) => !SHARED.has(k))
 const sharedPart = (P) => pick(P, (k) => SHARED.has(k))
 
-// v5: jade mesh + profiles and copper accent are fixed for every design,
+// v7: 3D strand defaults; v6: white backing removed; v5: jade mesh + profiles and copper accent are fixed for every design,
 // so drop any older colour values that were saved before that rule.
-const VERSION = 5
-const COLOUR_KEYS = ['meshColor', 'ribColor', 'signAccent']
+const VERSION = 7 // bump to drop stale saved values (see COLOUR_KEYS)
+const COLOUR_KEYS = ['meshColor', 'ribColor', 'signAccent', 'whiteBays', 'meshStrandW', 'meshTilt', 'mesh3D']
 function migrate(s) {
   if (s.v >= VERSION) return s
   const strip = (o = {}) => Object.fromEntries(Object.entries(o).filter(([k]) => !COLOUR_KEYS.includes(k)))
@@ -157,7 +197,7 @@ export function resetActive() {
 export const SIGN_STYLES = [
   { id: 'plates', name: '1 · Plates', note: 'stacked floor plates, unit plates screwed on' },
   { id: 'rail', name: '2 · Rail & cassettes', note: 'floor cassettes on two posts, unit inserts slide out sideways' },
-  { id: 'spine', name: '3 · Spine & chevrons', note: 'central spine, hexagon floor plates, chevron unit tags' },
+  { id: 'spine', name: '3 · Hexagons & chevrons', note: 'hexagon floor plates and chevron unit tags, each floor on its own bar' },
 ]
 
 export const isBuiltin = (id) => BUILTIN.some((d) => d.id === id)

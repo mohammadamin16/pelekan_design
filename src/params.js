@@ -5,6 +5,7 @@
 // Leva schema: folder -> key -> { value, min, max, step, label }
 export const SCHEMA = {
   Room: {
+    roomPlan: { value: 'generic', options: { generic: 'generic', 'Rhino 006 (measured)': 'rhino006' }, label: 'plan' },
     wallX: { value: -10.77, min: -14, max: -8, step: 0.01, label: 'wall face X' },
     wallYMin: { value: -2, min: -10, max: 5, step: 0.1, label: 'wall start Y' },
     wallYMax: { value: 22, min: 14, max: 40, step: 0.1, label: 'wall end Y' },
@@ -15,7 +16,7 @@ export const SCHEMA = {
   Feature: {
     featureY: { value: 9.6, min: 2, max: 18, step: 0.01, label: 'centre Y' },
     bays: { value: '0.85, 0.95, 1.40, 0.95, 0.85', label: 'bay widths' },
-    whiteBays: { value: '0, 4', label: 'white-backed bays' },
+    whiteBays: { value: 'none', label: 'white-backed bays' },
     pilasterWidth: { value: 0.15, min: 0, max: 0.6, step: 0.01, label: 'section gap' },
     pilasterDepth: { value: 0.04, min: 0, max: 0.2, step: 0.005, label: 'pilaster depth' },
     plinthHeight: { value: 0.25, min: 0, max: 0.8, step: 0.01, label: 'plinth height' },
@@ -28,8 +29,18 @@ export const SCHEMA = {
     filletRadius: { value: 0.3, min: 0.05, max: 1.5, step: 0.01, label: 'bend radius' },
     ceilingRun: { value: 3.8, min: 0, max: 12, step: 0.05, label: 'ceiling run' },
     fanSpread: { value: 0, min: -0.5, max: 2, step: 0.01, label: 'fan spread' },
-    returnDrop: { value: 0, min: 0, max: 2, step: 0.01, label: 'far-end drop' },
+    returnDrop: { value: 0, min: 0, max: 3, step: 0.01, label: 'far-end drop' },
     returnRadius: { value: 0.3, min: 0.05, max: 1.5, step: 0.01, label: 'far-end radius' },
+    // per section, comma separated; '-' or blank = use the value above.
+    // A section can be split into parts with '/': splits are the widths of the
+    // first parts, e.g. splits '-, 0.495' + runs '3.6, 3.6/2.7'.
+    sectionRuns: { value: 'same', label: 'run per section' },
+    sectionDrops: { value: 'same', label: 'drop per section' },
+    sectionSplits: { value: 'none', label: 'split sections at' },
+    meshBreak: { value: true, label: 'break above the wall part' },
+    // second break on the ceiling, per section: distance from the mesh at the wall (m)
+    ceilingBreaks: { value: '0.65, 0.85, 1.05, 0.85, 0.65', label: 'ceiling break per section' },
+    breakGap: { value: 0.05, min: 0.01, max: 0.3, step: 0.005, label: 'break gap' },
     meshCoversRibs: { value: true, label: 'sheets cover ribs' },
     meshOffset: { value: 0.085, min: 0.01, max: 0.3, step: 0.005, label: 'mesh off wall' },
     endTrim: { value: false, label: 'end trim bar' },
@@ -40,11 +51,16 @@ export const SCHEMA = {
     ribsBehind: { value: true, label: 'hidden behind mesh' },
     separateFrames: { value: true, label: 'frame per section' },
     edgeRibs: { value: false, label: 'ribs at outer edges' },
+    sideFins: { value: false, label: 'side plates at far-end drop' },
+    endPlates: { value: false, label: 'end plate up to ceiling' },
   },
   Mesh: {
     meshCellW: { value: 0.08, min: 0.01, max: 0.3, step: 0.005, label: 'cell width' },
     meshCellH: { value: 0.04, min: 0.005, max: 0.3, step: 0.005, label: 'cell height' },
-    meshStrand: { value: 0.3, min: 0.04, max: 0.45, step: 0.01, label: 'strand thickness' },
+    mesh3D: { value: true, label: '3D strands (real gaps)' },
+    meshStrandW: { value: 0.013, min: 0.002, max: 0.03, step: 0.0005, label: 'strand width' },
+    meshTilt: { value: 50, min: 0, max: 85, step: 1, label: 'strand tilt (°)' },
+    meshStrand: { value: 0.3, min: 0.04, max: 0.45, step: 0.01, label: 'flat: strand thickness' },
     meshColor: { value: '#759465', label: 'colour (mesh + profiles)' }, // jade green, Pantone 16-0228 TCX
     meshMetalness: { value: 0.25, min: 0, max: 1, step: 0.01, label: 'metalness' },
     meshRoughness: { value: 0.4, min: 0, max: 1, step: 0.01, label: 'roughness' },
@@ -60,8 +76,9 @@ export const SCHEMA = {
   },
   Signage: {
     showSigns: { value: true, label: 'floor directory' },
-    signStyle: { value: 'plates', options: { '1 · Plates': 'plates', '2 · Rail & cassettes': 'rail', '3 · Spine & chevrons': 'spine' }, label: 'guide board' },
+    signStyle: { value: 'plates', options: { '1 · Plates': 'plates', '2 · Rail & cassettes': 'rail', '3 · Hexagons & chevrons': 'spine' }, label: 'guide board' },
     signBay: { value: 2, options: { 'section 2': 1, 'section 3': 2, 'section 4': 3 }, label: 'on section' },
+    signFont: { value: 'vazirmatn', options: { Vazirmatn: 'vazirmatn', Shabnam: 'shabnam' }, label: 'font' },
     signLang: { value: 'fa', options: { 'فارسی': 'fa', English: 'en' }, label: 'language' },
     signMaterial: {
       value: 'blackSteel',
@@ -83,6 +100,7 @@ export const SCHEMA = {
   },
   Directory: buildDirectory(),
   Scene: {
+    rhinoRef: { value: 'off', options: { off: 'off', 'see-through': 'ghost', solid: 'solid' }, label: 'Rhino 006 model' },
     showColumns: { value: true, label: 'columns' },
     showCeiling: { value: true, label: 'ceiling' },
     lens: { value: 35, min: 10, max: 120, step: 1, label: 'lens (mm)' },
@@ -128,6 +146,9 @@ export const PRESETS = {
   overview: { label: 'Overview', cam: [-21.5, 1.5, 5.5], target: [-11.8, 9.6, 1.2], lens: 28 },
   side: { label: 'Section', cam: [-13.2, -7, 1.4], target: [-13.2, 9.6, 1.4], lens: 35 },
   top: { label: 'Top', cam: [-13.6, 9.6, 24], target: [-13.59, 9.6, 0], lens: 35 },
+  // the Perspective view saved in karimkhan 006.3dm
+  rhino006: { label: 'Rhino 006', cam: [-14.961, 3.921, 1.769], target: [-12.087, 8.011, 1.874], lens: 35 },
+  columns: { label: 'Columns', cam: [-11.3, 4.4, 1.45], target: [-15.0, 9.6, 1.35], lens: 24 },
 }
 
 // Rhino (x, y, z  Z-up) -> three.js (x, y, z  Y-up)
@@ -160,3 +181,44 @@ export function featureLayout(P) {
   })
   return { bayRanges, ribYs, y0, y1: y0 + total, total }
 }
+
+// Canopy parts: each section, split into parts where sectionSplits says so,
+// each with its own ceiling run and far-end drop.
+const entry = (s, i) => (String(s ?? '').split(',')[i] ?? '').trim()
+const nums = (t) => t.split('/').map((x) => (/^\s*-?\s*$/.test(x) ? NaN : Number(x)))
+export function canopyParts(P) {
+  const L = featureLayout(P)
+  const parts = []
+  L.bayRanges.forEach((b) => {
+    const ys = [b.y0]
+    for (const w of nums(entry(P.sectionSplits, b.i))) {
+      const y = ys[ys.length - 1] + w
+      if (w > 0 && y < b.y1 - 0.01) ys.push(y)
+    }
+    ys.push(b.y1)
+    const runs = nums(entry(P.sectionRuns, b.i))
+    const drops = nums(entry(P.sectionDrops, b.i))
+    const pick = (a, j, def) => {
+      const v = a[Math.min(j, a.length - 1)]
+      return Number.isFinite(v) ? v : def
+    }
+    for (let j = 0; j < ys.length - 1; j++) {
+      parts.push({
+        bay: b,
+        j,
+        n: ys.length - 1,
+        y0: ys[j],
+        y1: ys[j + 1],
+        run: pick(runs, j, P.ceilingRun),
+        drop: pick(drops, j, P.returnDrop),
+      })
+    }
+  })
+  return { L, parts }
+}
+export const sectionNumber = (s, i) => nums(entry(s, i))[0]
+export const withCanopy = (P, run, drop) => ({ ...P, ceilingRun: run, returnDrop: drop })
+
+// Changing defaults while the panel is open would save the old values as edits,
+// so reload the page instead of hot-swapping this module.
+if (import.meta.hot) import.meta.hot.accept(() => location.reload())

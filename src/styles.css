@@ -1,3 +1,8 @@
+/* Shabnam (rastikerdar, OFL), self-hosted for the sign textures */
+@font-face { font-family: Shabnam; src: url('/fonts/shabnam/Shabnam.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: Shabnam; src: url('/fonts/shabnam/Shabnam-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: Shabnam; src: url('/fonts/shabnam/Shabnam-Bold.woff2') format('woff2'); font-weight: 600 800; font-display: swap; }
+
 :root {
   --bg: #1b1c1f;
   --panel: rgba(24, 25, 29, 0.86);
