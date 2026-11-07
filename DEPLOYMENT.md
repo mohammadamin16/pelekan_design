@@ -1,28 +1,27 @@
 # Deployment
 
-The project can be deployed to GitHub Pages without Netlify. The workflow in
-`.github/workflows/deploy-pages.yml` builds `dist` with Node 22 and publishes it
-automatically whenever `main` changes.
+The project has a no-login static fallback using `raw.githack.com`. It serves
+the committed production build directly from GitHub, so it does not require a
+Netlify, GitHub Pages, or other hosting account.
 
-## One-time GitHub setup
+## No-login deployment
 
-In the repository settings, open **Pages**, set **Source** to **GitHub Actions**,
-and save. The published site will be:
-
-`https://mohammadamin16.github.io/pelekan_design/`
-
-## Deploy from the project
+Build and publish the generated files to `main`:
 
 ```sh
 npm ci
 npm run build
-git add .github/workflows/deploy-pages.yml DEPLOYMENT.md
-git commit -m "Add GitHub Pages deployment"
+git add -f dist
+git commit -m "Publish static build"
 git push origin main
 ```
 
-The push starts the **Deploy to GitHub Pages** workflow. Its status and the live
-URL are available in the repository's **Actions** tab.
+The site is then available at:
+
+`https://raw.githack.com/mohammadamin16/pelekan_design/main/dist/index.html`
+
+The repository also contains a GitHub Pages workflow for accounts that later
+enable Pages. It is optional and is not needed for the no-login URL above.
 
 For a local production preview:
 
